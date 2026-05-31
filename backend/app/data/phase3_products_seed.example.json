@@ -1,0 +1,15 @@
+[
+  {
+    "id": "hkia-phase3-sample-001",
+    "name": "示例产品A",
+    "category": "医疗",
+    "highlights": "示例亮点（需替换为真实公开资料）",
+    "coverage_summary": "示例保障范围摘要（需替换）",
+    "target_audience": "示例目标人群（需替换）",
+    "clause_summary": "示例关键条款摘要（需替换）",
+    "official_url": "https://example.com/product-a",
+    "source_note": "示例数据，仅用于导入格式演示",
+    "review_status": "pending_review",
+    "is_sample": true
+  }
+]

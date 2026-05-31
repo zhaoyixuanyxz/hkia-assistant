@@ -1,0 +1,56 @@
+[
+  {
+    "id": "mkt-1",
+    "name": "联系汇率制度（美元↔港元）",
+    "value": "参阅香港金融管理局公布区间与机制说明",
+    "explanation": "港元兑美元按联系汇率制度运作；具体汇率与运作细节以来源网页为准。本处不提供实时牌价。",
+    "source_url": "https://www.hkma.gov.hk/eng/key-functions/money/linked-exchange-rate-system/",
+    "trend_note": "机制长期稳定；短期市场因素可能带来在允许区间内的波动。",
+    "updated_at": "2026-05-02"
+  },
+  {
+    "id": "mkt-2",
+    "name": "香港保险业概况（统计）",
+    "value": "参阅保险业监管局公开统计数据",
+    "explanation": "保费、业务市况等以保险业监管局（IA）统计与披露为准，适合作为行业背景阅读。",
+    "source_url": "https://www.ia.org.hk/en/infocenter/statistics/annual_general_business_statistics.html",
+    "trend_note": "数据按 IA 发布周期更新；引用时请核对最新表格。",
+    "updated_at": "2026-05-02"
+  },
+  {
+    "id": "mkt-3",
+    "name": "保险监管框架（香港）",
+    "value": "参阅 IA 监管框架概览",
+    "explanation": "产品设计、销售、披露等合规要求以监管规则与官方说明为准。",
+    "source_url": "https://www.ia.org.hk/en/legislative_framework/overview/an_overview_of_the_regulatory_framework.html",
+    "trend_note": "规则可随立法与指引修订而变化。",
+    "updated_at": "2026-05-02"
+  },
+  {
+    "id": "mkt-4",
+    "name": "香港消费物价指数（CPI）",
+    "value": "参阅政府统计处消费物价指数专页",
+    "explanation": "通胀与购买力讨论可参考官方 CPI；本应用不替代统计处发布内容。",
+    "source_url": "https://www.censtatd.gov.hk/en/scode270.html",
+    "trend_note": "按统计处发布频率更新；分项指数见同一专页链出的报告。",
+    "updated_at": "2026-05-02"
+  },
+  {
+    "id": "mkt-5",
+    "name": "香港人口与结构",
+    "value": "参阅政府统计处人口相关统计",
+    "explanation": "老龄化、抚养比等宏观背景可参照官方人口统计数据。",
+    "source_url": "https://www.censtatd.gov.hk/en/scode160.html",
+    "trend_note": "人口结构为中长期趋势议题；具体数字以最新统计表为准。",
+    "updated_at": "2026-05-02"
+  },
+  {
+    "id": "mkt-6",
+    "name": "香港货币市场与基准利率参考",
+    "value": "参阅香港金融管理局统计月报（表列利率等）",
+    "explanation": "利率环境会影响储蓄与分红类产品讨论语境；请以 HKMA 等官方数据为准。",
+    "source_url": "https://www.hkma.gov.hk/eng/data-publications-and-research/data-and-statistics/monthly-statistical-bulletin/table/",
+    "trend_note": "利率随政策与市场变化；引用时请用最新月报或专页。",
+    "updated_at": "2026-05-02"
+  }
+]

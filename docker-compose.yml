@@ -1,0 +1,110 @@
+name: hkia-phase3
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:16}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hkia -d hkia"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      POSTGRES_USER: hkia
+      POSTGRES_PASSWORD: hkia
+      POSTGRES_DB: hkia
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  qdrant:
+    image: ${QDRANT_IMAGE:-qdrant/qdrant:v1.15.2}
+    restart: unless-stopped
+    healthcheck:
+      # Image has bash but no wget/curl; verify REST port accepts connections.
+      test:
+        [
+          "CMD-SHELL",
+          'bash -c "exec 3<>/dev/tcp/127.0.0.1/6333" && exit 0 || exit 1',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  backend:
+    image: hkia-phase3-backend:2026.05.4
+    build:
+      context: ./backend
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.11-slim}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://hkia:hkia@postgres:5432/hkia
+      QDRANT_URL: http://qdrant:6333
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      JWT_SECRET: change-me-for-compose
+      DEEPSEEK_API_BASE: "${DEEPSEEK_API_BASE:-${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}}"
+      DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
+      DEEPSEEK_CHAT_MODEL: "${DEEPSEEK_CHAT_MODEL:-${DEEPSEEK_MODEL:-deepseek-chat}}"
+      USE_MOCK_LLM: "${USE_MOCK_LLM:-false}"
+      FORCE_MEMORY_CHECKPOINTER: "false"
+      EMBEDDING_API_BASE: "${EMBEDDING_API_BASE:-}"
+      EMBEDDING_API_KEY: "${EMBEDDING_API_KEY:-}"
+      EMBEDDING_MODEL: "${EMBEDDING_MODEL:-text-embedding-3-small}"
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "alembic upgrade head &&
+      uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'python -c "import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8000/health\").read()" || exit 1',
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:22-alpine}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org/}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      # Used only by Next /api/backend proxy (never by the browser)
+      BACKEND_INTERNAL_URL: http://backend:8000
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://127.0.0.1:3000/',r=>process.exit(r.statusCode&&r.statusCode<500?0:1)).on('error',()=>process.exit(1))\"",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  postgres_data:
+  qdrant_data:

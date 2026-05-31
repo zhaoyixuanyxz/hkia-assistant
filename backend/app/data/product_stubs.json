@@ -1,0 +1,47 @@
+[
+  {
+    "id": "sample-prod-1",
+    "name": "示例高端医疗（演示）",
+    "category": "医疗",
+    "summary": "用于演示的知识库条目，非真实在售产品。",
+    "source_url": "https://example.com/sample-medical",
+    "is_sample": true,
+    "updated_at": "2026-05-01"
+  },
+  {
+    "id": "sample-prod-2",
+    "name": "示例定期寿险（演示）",
+    "category": "人寿",
+    "summary": "保障期内身故给付，演示用。",
+    "source_url": "https://example.com/sample-term",
+    "is_sample": true,
+    "updated_at": "2026-05-01"
+  },
+  {
+    "id": "sample-prod-3",
+    "name": "示例储蓄分红（演示）",
+    "category": "储蓄",
+    "summary": "长期储蓄与分红机制示意，非收益承诺。",
+    "source_url": "https://example.com/sample-savings",
+    "is_sample": true,
+    "updated_at": "2026-05-01"
+  },
+  {
+    "id": "sample-prod-4",
+    "name": "示例危疾保障（演示）",
+    "category": "重疾",
+    "summary": "一次性给付类保障示意。",
+    "source_url": "https://example.com/sample-ci",
+    "is_sample": true,
+    "updated_at": "2026-05-01"
+  },
+  {
+    "id": "sample-prod-5",
+    "name": "示例万用寿险（演示）",
+    "category": "人寿",
+    "summary": "灵活保费与账户价值示意。",
+    "source_url": "https://example.com/sample-ul",
+    "is_sample": true,
+    "updated_at": "2026-05-01"
+  }
+]

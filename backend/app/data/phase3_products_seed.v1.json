@@ -1,0 +1,41 @@
+[
+  {
+    "id": "clo-great-harvest-income-plan",
+    "name": "豐盛連年儲蓄保險計劃",
+    "category": "储蓄",
+    "highlights": "定期派發保證可支取現金，並提供非保證紅利及終期紅利以支持長線財富規劃。",
+    "coverage_summary": "提供長期保障期及現金流安排，並支持保單貨幣為港元或美元。",
+    "target_audience": "有中長線儲蓄與家庭財富規劃需求的人群。",
+    "clause_summary": "紅利屬非保證；完整定義、保障與除外責任以正式保單文件為準。",
+    "official_url": "https://chinalife.com.hk/zh-hk/products/insurance/great-harvest-income-plan",
+    "source_note": "China Life (Overseas) 官方產品頁（2026-05-01 人工核驗）",
+    "review_status": "pending_review",
+    "is_sample": false
+  },
+  {
+    "id": "clo-evertogether-supreme",
+    "name": "愛相隨傳承儲蓄保險計劃（優越版）",
+    "category": "储蓄",
+    "highlights": "支持多種保費供款年期與財富傳承安排，定位為長線財富增值與傳承工具。",
+    "coverage_summary": "屬終身保障型儲蓄計劃，支持多幣種保單選擇（以官方頁面列示為準）。",
+    "target_audience": "有財富傳承與中長期資產配置需求的客戶。",
+    "clause_summary": "具非保證回報要素；完整條款、費用與風險揭示以保單文件為準。",
+    "official_url": "https://www.chinalife.com.hk/zh-hk/products/insurance/evertogether-savings-insurance-plan-supreme",
+    "source_note": "China Life (Overseas) 官方產品頁（2026-05-01 人工核驗）",
+    "review_status": "pending_review",
+    "is_sample": false
+  },
+  {
+    "id": "clo-elite-care-critical-illness",
+    "name": "危疾全護保障計劃",
+    "category": "重疾",
+    "highlights": "整合危疾、人壽保障與儲蓄元素，並對核心嚴重病症提供多重保障設計。",
+    "coverage_summary": "覆蓋多種受保病症，並提供危疾相關給付與身故賠償（以官方保單條款為準）。",
+    "target_audience": "關注重疾風險管理與家庭財務保障的人群。",
+    "clause_summary": "病症定義、等待期、除外責任與理賠條件以正式合約條款為準。",
+    "official_url": "https://www.chinalife.com.hk/zh-hk/products/insurance/elite-care-critical-illness-insurance-plan",
+    "source_note": "China Life (Overseas) 官方產品頁（2026-05-01 人工核驗）",
+    "review_status": "pending_review",
+    "is_sample": false
+  }
+]
