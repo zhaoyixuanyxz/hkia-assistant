@@ -19,7 +19,7 @@ POSTGRES_URL=<postgres-connection-string>
 QDRANT_URL=http://localhost:6333
 
 # --- Knowledge base admin ---
-ADMIN_PASSWORD=13724176655
+ADMIN_PASSWORD=<your-admin-password>
 
 # --- LangSmith (optional; enable tracing) ---
 LANGCHAIN_TRACING_V2=true
