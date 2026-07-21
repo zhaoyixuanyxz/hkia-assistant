@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
@@ -18,6 +18,7 @@ import { Link, useRouter } from "@/i18n/navigation";
 export default function ReportPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const locale = useLocale();
   const tr = useTranslations("report");
   const id = Number(params.id);
   const [report, setReport] = useState<ReportResponse | null>(null);
@@ -56,7 +57,7 @@ export default function ReportPage() {
     try {
       const rep = await apiFetchWithTimeout<ReportResponse>(
         `/conversations/${id}/reports/generate`,
-        { method: "POST" },
+        { method: "POST", body: JSON.stringify({ locale }) },
         120_000
       );
       setReport(rep);

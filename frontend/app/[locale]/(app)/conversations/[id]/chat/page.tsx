@@ -1,7 +1,7 @@
 "use client";
 
 import { Libre_Baskerville, Outfit } from "next/font/google";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -31,6 +31,7 @@ const libre = Libre_Baskerville({
 export default function ChatPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const locale = useLocale();
   const t = useTranslations("chat");
   const id = Number(params.id);
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
@@ -71,7 +72,7 @@ export default function ChatPage() {
     try {
       await apiFetch<Message[]>(`/conversations/${id}/messages`, {
         method: "POST",
-        body: JSON.stringify({ content: text }),
+        body: JSON.stringify({ content: text, locale }),
       });
       setInput("");
       await load();
@@ -104,7 +105,7 @@ export default function ChatPage() {
         `/conversations/${id}/messages/${editingId}`,
         {
           method: "PATCH",
-          body: JSON.stringify({ content: text }),
+          body: JSON.stringify({ content: text, locale }),
         },
       );
       cancelEdit();
