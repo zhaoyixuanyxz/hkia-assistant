@@ -127,18 +127,38 @@ def _chat_completion_assistant_text(message: Any) -> str:
 
 class LLMService(ABC):
     @abstractmethod
-    def chat(self, messages: list[dict[str, str]], system: str) -> str:
+    def chat(
+        self,
+        messages: list[dict[str, str]],
+        system: str,
+        *,
+        locale: str | None = None,
+    ) -> str:
         ...
 
     @abstractmethod
     def complete_json_text(
-        self, user_prompt: str, system: str, *, max_tokens: int | None = None
+        self,
+        user_prompt: str,
+        system: str,
+        *,
+        max_tokens: int | None = None,
+        thinking: bool | None = None,
     ) -> str:
-        """Return raw model text expected to be a JSON object."""
+        """Return raw model text expected to be a JSON object.
+
+        ``thinking=True`` enables DeepSeek thinking (report path). Default / False
+        keeps thinking disabled (chat / profile / rewrite path).
+        """
 
     @abstractmethod
     def rewrite_chat_body_to_length(
-        self, body: str, min_len: int, max_len: int
+        self,
+        body: str,
+        min_len: int,
+        max_len: int,
+        *,
+        locale: str | None = None,
     ) -> str:
         """Rewrite advisor-visible body to satisfy min_len <= len(body) <= max_len (no disclaimer)."""
 
@@ -162,15 +182,57 @@ class DeepSeekLLM(LLMService):
             )
         return self._client
 
-    def chat(self, messages: list[dict[str, str]], system: str) -> str:
+    def _resolve_thinking_enabled(self, thinking: bool | None) -> bool:
+        if thinking is None:
+            return False
+        if thinking:
+            return bool(self._settings.deepseek_report_thinking)
+        return False
+
+    def _create_completion(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        max_tokens: int,
+        temperature: float | None,
+        thinking_enabled: bool,
+    ) -> Any:
+        """OpenAI-compatible chat.completions with DeepSeek V4 thinking switch."""
+        kwargs: dict[str, Any] = {
+            "model": self._settings.deepseek_chat_model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+        }
+        if thinking_enabled:
+            effort = (self._settings.deepseek_report_reasoning_effort or "high").strip().lower()
+            if effort not in ("high", "max"):
+                effort = "high"
+            kwargs["reasoning_effort"] = effort
+            kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
+            # DeepSeek docs: temperature etc. are ignored in thinking mode.
+        else:
+            if temperature is not None:
+                kwargs["temperature"] = temperature
+            kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
+        return self._client_or_raise().chat.completions.create(**kwargs)
+
+    def chat(
+        self,
+        messages: list[dict[str, str]],
+        system: str,
+        *,
+        locale: str | None = None,
+    ) -> str:
+        from app.locale_support import normalize_locale, output_language_instruction
+
         payload = [{"role": "system", "content": system}]
         payload.extend(messages)
         s = self._settings
-        resp = self._client_or_raise().chat.completions.create(
-            model=s.deepseek_chat_model,
+        resp = self._create_completion(
             messages=payload,
-            temperature=s.deepseek_chat_temperature,
             max_tokens=s.deepseek_chat_max_tokens,
+            temperature=s.deepseek_chat_temperature,
+            thinking_enabled=False,
         )
         choice = resp.choices[0]
         text = _chat_completion_assistant_text(choice.message)
@@ -180,18 +242,25 @@ class DeepSeekLLM(LLMService):
             "deepseek_chat_empty_first_attempt finish_reason=%s",
             getattr(choice, "finish_reason", None),
         )
+        loc = normalize_locale(locale)
+        prose_hint = {
+            "zh-CN": "一小段简体中文正文",
+            "zh-TW": "一小段繁體中文正文",
+            "en": "a short English prose reply",
+        }[loc]
         retry_system = (
             f"{system}\n\n"
-            "【硬性要求·仅本轮】你必须输出一小段中文正文，直接回应用户上一轮内容，"
-            "不少于30字且不得为空；不要只输出思考过程或标签。"
+            f"【硬性要求·仅本轮】你必须输出{prose_hint}，直接回应用户上一轮内容，"
+            "不少于30字且不得为空；不要只输出思考过程或标签。\n"
+            f"{output_language_instruction(loc)}"
         )
         payload_retry = [{"role": "system", "content": retry_system}]
         payload_retry.extend(messages)
-        resp2 = self._client_or_raise().chat.completions.create(
-            model=s.deepseek_chat_model,
+        resp2 = self._create_completion(
             messages=payload_retry,
-            temperature=s.deepseek_chat_retry_temperature,
             max_tokens=s.deepseek_chat_max_tokens,
+            temperature=s.deepseek_chat_retry_temperature,
+            thinking_enabled=False,
         )
         text2 = _chat_completion_assistant_text(resp2.choices[0].message)
         if text2:
@@ -205,7 +274,12 @@ class DeepSeekLLM(LLMService):
         return ""
 
     def complete_json_text(
-        self, user_prompt: str, system: str, *, max_tokens: int | None = None
+        self,
+        user_prompt: str,
+        system: str,
+        *,
+        max_tokens: int | None = None,
+        thinking: bool | None = None,
     ) -> str:
         messages = [
             {"role": "system", "content": system},
@@ -214,11 +288,12 @@ class DeepSeekLLM(LLMService):
         s = self._settings
         cap = max_tokens if max_tokens is not None else min(8192, s.deepseek_chat_max_tokens)
         cap = min(max(cap, 1), 16384)
-        resp = self._client_or_raise().chat.completions.create(
-            model=self._settings.deepseek_chat_model,
+        thinking_enabled = self._resolve_thinking_enabled(thinking)
+        resp = self._create_completion(
             messages=messages,
-            temperature=0.3,
             max_tokens=cap,
+            temperature=None if thinking_enabled else 0.3,
+            thinking_enabled=thinking_enabled,
         )
         extracted = _chat_completion_assistant_text(resp.choices[0].message)
         if extracted:
@@ -226,18 +301,26 @@ class DeepSeekLLM(LLMService):
         return _message_content_to_str(getattr(resp.choices[0].message, "content", None))
 
     def rewrite_chat_body_to_length(
-        self, body: str, min_len: int, max_len: int
+        self,
+        body: str,
+        min_len: int,
+        max_len: int,
+        *,
+        locale: str | None = None,
     ) -> str:
-        system = chat_body_rewrite_system(min_len, max_len)
+        from app.locale_support import normalize_locale
+
+        system = chat_body_rewrite_system(min_len, max_len, locale=locale)
         messages = [
             {"role": "system", "content": system},
             {"role": "user", "content": body},
         ]
-        resp = self._client_or_raise().chat.completions.create(
-            model=self._settings.deepseek_chat_model,
+        cap = min(4096, self._settings.deepseek_chat_max_tokens)
+        resp = self._create_completion(
             messages=messages,
+            max_tokens=cap,
             temperature=0.35,
-            max_tokens=min(4096, self._settings.deepseek_chat_max_tokens),
+            thinking_enabled=False,
         )
         msg = resp.choices[0].message
         text = _chat_completion_assistant_text(msg)
@@ -247,19 +330,24 @@ class DeepSeekLLM(LLMService):
             "rewrite_chat_body_empty finish_reason=%s",
             getattr(resp.choices[0], "finish_reason", None),
         )
+        lang_hint = {
+            "zh-CN": "简体中文",
+            "zh-TW": "繁體中文",
+            "en": "English",
+        }[normalize_locale(locale)]
         retry_user = (
             f"{body}\n\n（改写助手：上一条未产出正文。请只输出改写后的顾问正文，"
-            f"长度须在 {min_len}—{max_len} 字之间，中文，不要思考标签。）"
+            f"长度须在 {min_len}—{max_len} 字之间，使用{lang_hint}，不要思考标签。）"
         )
         messages_retry = [
             {"role": "system", "content": system},
             {"role": "user", "content": retry_user},
         ]
-        resp2 = self._client_or_raise().chat.completions.create(
-            model=self._settings.deepseek_chat_model,
+        resp2 = self._create_completion(
             messages=messages_retry,
+            max_tokens=cap,
             temperature=0.25,
-            max_tokens=min(4096, self._settings.deepseek_chat_max_tokens),
+            thinking_enabled=False,
         )
         text2 = _chat_completion_assistant_text(resp2.choices[0].message)
         return (text2 or "").strip()
@@ -283,7 +371,13 @@ class MockLLM(LLMService):
             "如需更贴切，请补充一项最关心的保障责任、预算或已有保单线索，便于给出更准确的配置判断。"
         )
 
-    def chat(self, messages: list[dict[str, str]], system: str) -> str:
+    def chat(
+        self,
+        messages: list[dict[str, str]],
+        system: str,
+        *,
+        locale: str | None = None,
+    ) -> str:
         if "用户画像摘录" in system or "画像摘录" in system:
             return self._profile_reply
         if "对话摘要助手" in system:
@@ -294,7 +388,12 @@ class MockLLM(LLMService):
         return self._chat_reply
 
     def rewrite_chat_body_to_length(
-        self, body: str, min_len: int, max_len: int
+        self,
+        body: str,
+        min_len: int,
+        max_len: int,
+        *,
+        locale: str | None = None,
     ) -> str:
         s = (body or "").strip()
         if min_len <= len(s) <= max_len:
@@ -307,7 +406,12 @@ class MockLLM(LLMService):
         return s
 
     def complete_json_text(
-        self, user_prompt: str, system: str, *, max_tokens: int | None = None
+        self,
+        user_prompt: str,
+        system: str,
+        *,
+        max_tokens: int | None = None,
+        thinking: bool | None = None,
     ) -> str:
         if PROFILE_DUAL_SOURCE_FUSE_MARKER in system:
             return json.dumps(
@@ -495,21 +599,72 @@ def parse_report_json(raw: str) -> ReportPayload:
     return ReportPayload.model_validate(coerced)
 
 
-def report_fallback() -> ReportPayload:
-    from app.compliance import STANDARD_DISCLAIMER
+_REPORT_FALLBACK_COPY: dict[str, dict[str, Any]] = {
+    "zh-CN": {
+        "title": "配置说明（系统兜底）",
+        "user_background": "由于模型输出解析失败，以下为框架性占位说明；请重新生成或联系支持。",
+        "insights": "信息不足，无法在自动化流程中得出可靠洞察。",
+        "allocation_direction": "建议先澄清预算、家庭结构与已有保障。",
+        "product_category_suggestions": "请在持牌顾问协助下选择具体产品类别。",
+        "risk_notes": "勿依赖本占位文本做购买决策。",
+        "follow_up_questions": ["请补充年龄、职业、家庭负担与币种偏好。"],
+        "chart_title": "时间线占位（示例）",
+        "limited_data_notice": "当前内容非模型有效输出，仅为系统兜底；数据来源有限。",
+    },
+    "zh-TW": {
+        "title": "配置說明（系統兜底）",
+        "user_background": "由於模型輸出解析失敗，以下為框架性佔位說明；請重新產生或聯繫支援。",
+        "insights": "資訊不足，無法在自動化流程中得出可靠洞察。",
+        "allocation_direction": "建議先澄清預算、家庭結構與已有保障。",
+        "product_category_suggestions": "請在持牌顧問協助下選擇具體產品類別。",
+        "risk_notes": "勿依賴本佔位文字做購買決策。",
+        "follow_up_questions": ["請補充年齡、職業、家庭負擔與幣種偏好。"],
+        "chart_title": "時間線佔位（示例）",
+        "limited_data_notice": "當前內容非模型有效輸出，僅為系統兜底；資料來源有限。",
+    },
+    "en": {
+        "title": "Configuration note (system fallback)",
+        "user_background": (
+            "Model output could not be parsed. The following is a structural placeholder; "
+            "please regenerate or contact support."
+        ),
+        "insights": "Insufficient information to produce reliable insights in the automated flow.",
+        "allocation_direction": (
+            "Clarify budget, household structure, and existing cover first."
+        ),
+        "product_category_suggestions": (
+            "Choose specific product categories with help from a licensed adviser."
+        ),
+        "risk_notes": "Do not rely on this placeholder text for purchase decisions.",
+        "follow_up_questions": [
+            "Please share age, occupation, household responsibilities, and currency preference."
+        ],
+        "chart_title": "Timeline placeholder (example)",
+        "limited_data_notice": (
+            "This content is not a valid model output; it is a system fallback with limited data."
+        ),
+    },
+}
 
+
+def report_fallback(locale: str | None = None) -> ReportPayload:
+    from app.compliance import disclaimer_for
+    from app.locale_support import normalize_locale
+
+    loc = normalize_locale(locale)
+    copy = _REPORT_FALLBACK_COPY[loc]
     return ReportPayload(
-        title="配置说明（系统兜底）",
-        user_background="由于模型输出解析失败，以下为框架性占位说明；请重新生成或联系支持。",
-        insights="信息不足，无法在自动化流程中得出可靠洞察。",
-        allocation_direction="建议先澄清预算、家庭结构与已有保障。",
-        product_category_suggestions="请在持牌顾问协助下选择具体产品类别。",
-        risk_notes="勿依赖本占位文本做购买决策。",
-        follow_up_questions=["请补充年龄、职业、家庭负担与币种偏好。"],
+        title=copy["title"],
+        user_background=copy["user_background"],
+        insights=copy["insights"],
+        allocation_direction=copy["allocation_direction"],
+        product_category_suggestions=copy["product_category_suggestions"],
+        risk_notes=copy["risk_notes"],
+        follow_up_questions=list(copy["follow_up_questions"]),
         charts=[
             {
                 "type": "line",
-                "title": "时间线占位（示例）",
+                "title": copy["chart_title"],
                 "data": [
                     {"name": "T0", "value": 1},
                     {"name": "T1", "value": 2},
@@ -517,7 +672,7 @@ def report_fallback() -> ReportPayload:
                 ],
             },
         ],
-        limited_data_notice="当前内容非模型有效输出，仅为系统兜底；数据来源有限。",
-        disclaimer=STANDARD_DISCLAIMER,
+        limited_data_notice=copy["limited_data_notice"],
+        disclaimer=disclaimer_for(loc),
         concrete_product_picks=[],
     )

@@ -10,7 +10,7 @@ from typing import Any
 from fastapi import HTTPException
 
 from app.llm import LLMService
-from app.prompts import PROFILE_DUAL_SOURCE_FUSE_MARKER, PROFILE_DUAL_SOURCE_FUSE_SYSTEM
+from app.prompts import PROFILE_DUAL_SOURCE_FUSE_MARKER, profile_dual_source_fuse_system
 from app.survey_merge import _cats_from_goals, _goals_text, survey_to_dimension_strings
 from app.survey_template import _blankish
 
@@ -172,6 +172,7 @@ def fuse_profile_summary_dual_source(
     conversation_summary: str,
     merged_struct: dict[str, Any],
     survey_block: str,
+    locale: str | None = None,
 ) -> tuple[str, str]:
     struct_dump = json.dumps(merged_struct, ensure_ascii=False)[:14000]
     user = (
@@ -183,7 +184,9 @@ def fuse_profile_summary_dual_source(
         '只输出 JSON：`{"integrated_summary":"..."}` 单键对象。'
     )
     try:
-        raw = llm.complete_json_text(user, PROFILE_DUAL_SOURCE_FUSE_SYSTEM)
+        raw = llm.complete_json_text(
+            user, profile_dual_source_fuse_system(locale), thinking=True
+        )
         fused = _parse_integrated_json(raw)
         if fused:
             return fused, "llm_dual_source_fuse"
@@ -202,6 +205,7 @@ def build_integrated_profile_for_report(
     conversation_structured: dict[str, Any] | None,
     survey_answers: dict[str, Any],
     survey_block: str,
+    locale: str | None = None,
 ) -> tuple[str, dict[str, Any], str]:
     merged = merge_structured_dual_source(conversation_structured, survey_answers)
     summary, fuse_mode = fuse_profile_summary_dual_source(
@@ -209,5 +213,6 @@ def build_integrated_profile_for_report(
         conversation_summary=conversation_profile_summary,
         merged_struct=merged,
         survey_block=survey_block,
+        locale=locale,
     )
     return summary, merged, fuse_mode

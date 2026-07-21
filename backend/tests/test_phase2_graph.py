@@ -24,7 +24,7 @@ def test_conversation_runner_skips_profile_when_not_scheduled() -> None:
         '"key_memories":["偏好稳健"],"product_focus_categories":["医疗"],"budget_hint":""}'
     )
 
-    def _rewrite(body: str, min_len: int, max_len: int) -> str:
+    def _rewrite(body: str, min_len: int, max_len: int, *, locale: str | None = None) -> str:
         s = body.strip()
         if min_len <= len(s) <= max_len:
             return s

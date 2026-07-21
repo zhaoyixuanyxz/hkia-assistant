@@ -6,25 +6,32 @@ import re
 from typing import Any
 
 from app.compliance import (
-    CHAT_ASSISTANT_SECOND_FALLBACK,
     assistant_content_for_llm,
     assistant_pipeline_failure_reply,
     chat_reply_has_substantive_body,
     enforce_chat_body_length_range,
     ensure_disclaimer_text,
     normalize_chat_assistant_body,
+    second_fallback_for,
     _body_has_substantive_tokens,
     _strip_trailing_disclaimer_blocks,
 )
 from app.config import Settings, get_settings
 from app.llm import LLMService, _strip_think_wrappers
+from app.locale_support import normalize_locale
 from app.prompts import (
-    PROFILE_STRUCTURED_JSON_SYSTEM,
-    ROLLING_SUMMARY_SYSTEM,
     build_insurance_expert_system,
+    profile_structured_json_system,
+    rolling_summary_system,
 )
 
 logger = logging.getLogger(__name__)
+
+_ANTI_REPEAT_PROSE_BY_LOCALE: dict[str, str] = {
+    "zh-CN": "用一段全新的专业中文作答",
+    "zh-TW": "用一段全新的專業中文作答",
+    "en": "answer in a fresh paragraph of clear professional English",
+}
 
 
 def _raw_has_visible_substance(raw: str | None) -> bool:
@@ -95,6 +102,7 @@ def _build_expert_system(state: dict[str, Any], settings: Settings) -> str:
     system = build_insurance_expert_system(
         settings.chat_body_len_min,
         settings.chat_body_len_max,
+        locale=state.get("locale"),
     )
     rs = str(state.get("rolling_summary") or "").strip()
     if rs:
@@ -119,24 +127,26 @@ def _build_expert_system(state: dict[str, Any], settings: Settings) -> str:
 
 def insurance_expert_step(state: dict[str, Any], llm: LLMService) -> dict[str, Any]:
     settings = get_settings()
+    loc = normalize_locale(state.get("locale"))
     system = _build_expert_system(state, settings)
     history = state.get("messages_history") or []
     lo, hi = settings.chat_body_len_min, settings.chat_body_len_max
     try:
-        reply_raw = llm.chat(history, system)
+        reply_raw = llm.chat(history, system, locale=loc)
         if not _raw_has_visible_substance(reply_raw):
             logger.warning(
                 "insurance_expert_retry_antirepeat conversation_id=%s user_id=%s",
                 state.get("conversation_id"),
                 state.get("user_id"),
             )
+            prose = _ANTI_REPEAT_PROSE_BY_LOCALE[loc]
             anti_repeat = (
                 "\n\n【本轮硬性约束】你必须通读完整对话历史：若用户已说明预算、就医地域/范围、"
                 "或已回答你的上一轮追问，**禁止**再用「补充预算/保障缺口」或与上文雷同的套话敷衍，"
                 "也不得假装信息仍缺失。你必须在此基础上往前推进一步（例如住院险责任层级、免赔/自付、"
-                "医院网络、或下一步险种取舍），用一段全新的专业中文作答，不少于 80 字，不得为空。"
+                f"医院网络、或下一步险种取舍），{prose}，不少于 80 字，不得为空。"
             )
-            reply_raw = llm.chat(history, system + anti_repeat)
+            reply_raw = llm.chat(history, system + anti_repeat, locale=loc)
         if not (reply_raw or "").strip():
             logger.error(
                 "insurance_expert_empty_llm_reply conversation_id=%s user_id=%s history_msgs=%s",
@@ -144,11 +154,11 @@ def insurance_expert_step(state: dict[str, Any], llm: LLMService) -> dict[str, A
                 state.get("user_id"),
                 len(history),
             )
-        body = normalize_chat_assistant_body(reply_raw)
+        body = normalize_chat_assistant_body(reply_raw, locale=loc)
         if not (lo <= len(body) <= hi):
             pre_rewrite = body
             try:
-                body = llm.rewrite_chat_body_to_length(body, lo, hi)
+                body = llm.rewrite_chat_body_to_length(body, lo, hi, locale=loc)
                 body = _strip_trailing_disclaimer_blocks(body.strip())
                 if not chat_reply_has_substantive_body(body):
                     body = enforce_chat_body_length_range(
@@ -164,16 +174,16 @@ def insurance_expert_step(state: dict[str, Any], llm: LLMService) -> dict[str, A
                 body = enforce_chat_body_length_range(body, min_len=lo, max_len=hi)
         if not chat_reply_has_substantive_body(body):
             body = enforce_chat_body_length_range(
-                CHAT_ASSISTANT_SECOND_FALLBACK, min_len=lo, max_len=hi
+                second_fallback_for(loc), min_len=lo, max_len=hi
             )
-        reply = ensure_disclaimer_text(body)
+        reply = ensure_disclaimer_text(body, locale=loc)
     except Exception:
         logger.exception(
             "insurance_expert_failed conversation_id=%s user_id=%s",
             state.get("conversation_id"),
             state.get("user_id"),
         )
-        reply = assistant_pipeline_failure_reply()
+        reply = assistant_pipeline_failure_reply(loc)
     return {
         "assistant_reply": reply,
         "run_profile_architect": bool(state.get("run_profile_architect")),
@@ -190,8 +200,11 @@ def profile_architect_step(state: dict[str, Any], llm: LLMService) -> dict[str, 
         "请输出结构化画像 JSON。"
     )
     settings = get_settings()
+    loc = normalize_locale(state.get("locale"))
     try:
-        raw = llm.complete_json_text(prompt, PROFILE_STRUCTURED_JSON_SYSTEM)
+        raw = llm.complete_json_text(
+            prompt, profile_structured_json_system(locale=loc)
+        )
         text = _strip_json_fence(raw)
         data = json.loads(text)
         summary_new = str(data.get("summary_text", "")).strip()
@@ -222,6 +235,7 @@ def merge_rolling_conversation_summary(
     older_transcript: str,
     *,
     max_transcript_chars: int = 6000,
+    locale: str | None = None,
 ) -> str:
     """Compress dropped messages into rolling summary (plain text)."""
     chunk = (older_transcript or "").strip()
@@ -233,10 +247,12 @@ def merge_rolling_conversation_summary(
         f"已有更早对话摘要：\n{previous_summary or '（无）'}\n\n"
         f"新增更早对话片段：\n{chunk}"
     )
+    loc = normalize_locale(locale)
     try:
         out = llm.chat(
             [{"role": "user", "content": user_prompt}],
-            ROLLING_SUMMARY_SYSTEM,
+            rolling_summary_system(locale=loc),
+            locale=loc,
         )
         return (out or "").strip()
     except Exception:

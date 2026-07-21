@@ -13,7 +13,7 @@ from app.chart_spec import (
 )
 from app.config import get_settings
 from app.llm import LLMService, parse_report_json, report_fallback
-from app.prompts import REPORT_DEPTH_INSTRUCTIONS, REPORT_JSON_SYSTEM
+from app.prompts import REPORT_DEPTH_INSTRUCTIONS, report_json_system
 from app.rag.retriever import HybridProductRetriever, retrieval_request_from_profile
 
 logger = logging.getLogger(__name__)
@@ -85,8 +85,9 @@ def report_architect_node(state: dict[str, Any], llm: LLMService) -> dict[str, A
         settings = get_settings()
         raw = llm.complete_json_text(
             prompt,
-            REPORT_JSON_SYSTEM,
+            report_json_system(state.get("locale")),
             max_tokens=settings.report_json_max_tokens,
+            thinking=True,
         )
         payload = parse_report_json(raw)
     except Exception:
@@ -96,7 +97,7 @@ def report_architect_node(state: dict[str, Any], llm: LLMService) -> dict[str, A
             state.get("conversation_id"),
             preview,
         )
-        payload = report_fallback()
+        payload = report_fallback(state.get("locale"))
     out: dict[str, Any] = {"report_payload_dict": payload.model_dump()}
     if "candidates" in state:
         out["candidates"] = state["candidates"]
@@ -127,7 +128,7 @@ def visualizer_agent_node(state: dict[str, Any]) -> dict[str, Any]:
         )
     charts = enforce_report_chart_depth(charts, depth, budget=chart_budget)
     if len(charts) < 1:
-        fb = report_fallback()
+        fb = report_fallback(state.get("locale"))
         charts = sanitize_charts_list([c.model_dump() for c in fb.charts])
         charts = enforce_report_chart_depth(charts, depth, budget=chart_budget)
     if len(charts) < 1:
