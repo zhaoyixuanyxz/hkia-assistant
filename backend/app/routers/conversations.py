@@ -6,7 +6,7 @@ import re
 import time
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 from sqlalchemy import delete, desc, func, nullslast, select
 from sqlalchemy.orm import Session
 
@@ -22,6 +22,7 @@ from app.config import get_settings
 from app.db import get_db
 from app.deps import get_current_user
 from app.embeddings import get_embedding_service
+from app.locale_support import normalize_locale
 from app.llm import (
     LLMService,
     get_llm_service,
@@ -68,6 +69,7 @@ from app.schemas import (
     ConversationSurveyUpsert,
     MessageCreate,
     MessageOut,
+    ReportGenerateBody,
     ReportOut,
     ReportPayload,
 )
@@ -256,9 +258,11 @@ def _complete_chat_turn(
     user: User,
     llm: LLMService,
     user_msg: Message,
+    locale: str | None = None,
 ) -> list[MessageOut]:
     """Run assistant reply + optional profile/memory/rolling fold after a user row exists."""
     settings = get_settings()
+    loc = normalize_locale(locale)
     text = user_msg.content.strip()
     if not text:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Empty message")
@@ -333,6 +337,7 @@ def _complete_chat_turn(
                 "retrieval_context": retrieval_context,
                 "run_profile_architect": run_profile,
                 "rolling_summary": conv.rolling_summary or "",
+                "locale": loc,
             },
             llm,
         )
@@ -344,7 +349,7 @@ def _complete_chat_turn(
             PROMPT_VERSION,
         )
         out = {
-            "assistant_reply": assistant_pipeline_failure_reply(),
+            "assistant_reply": assistant_pipeline_failure_reply(loc),
             "profile_refresh_done": False,
         }
     elapsed_ms = int((time.perf_counter() - t0) * 1000)
@@ -358,10 +363,11 @@ def _complete_chat_turn(
     )
 
     assistant_text = finalize_chat_assistant_text(
-        str(out.get("assistant_reply") or "").strip()
+        str(out.get("assistant_reply") or "").strip(),
+        locale=loc,
     )
     if not assistant_text.strip():
-        assistant_text = assistant_pipeline_failure_reply()
+        assistant_text = assistant_pipeline_failure_reply(loc)
 
     asst_msg = Message(
         conversation_id=conv.id, role="assistant", content=assistant_text
@@ -529,7 +535,7 @@ def post_message(
     db.commit()
     db.refresh(user_msg)
 
-    return _complete_chat_turn(db, conv, user, llm, user_msg)
+    return _complete_chat_turn(db, conv, user, llm, user_msg, locale=body.locale)
 
 
 @router.patch(
@@ -579,7 +585,7 @@ def patch_user_message(
     db.commit()
     db.refresh(user_msg)
 
-    return _complete_chat_turn(db, conv, user, llm, user_msg)
+    return _complete_chat_turn(db, conv, user, llm, user_msg, locale=body.locale)
 
 
 @router.get("/{conversation_id}/survey", response_model=ConversationSurveyOut)
@@ -708,10 +714,12 @@ def pull_conversation_survey_from_library(
 @router.post("/{conversation_id}/reports/generate", response_model=ReportOut)
 def generate_report(
     conversation_id: int,
+    body: ReportGenerateBody = Body(default_factory=ReportGenerateBody),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     llm: LLMService = Depends(get_llm_dep),
 ) -> ReportOut:
+    loc = normalize_locale(body.locale)
     conv = _get_conversation(db, conversation_id, user, active_only=True)
     msgs = db.scalars(
         select(Message)
@@ -754,6 +762,7 @@ def generate_report(
         conversation_structured=structured_base,
         survey_answers=survey_answers,
         survey_block=survey_block,
+        locale=loc,
     )
 
     retriever = HybridProductRetriever(get_embedding_service())
@@ -769,6 +778,7 @@ def generate_report(
                 "survey_supplement": survey_block,
                 "report_depth": report_depth,
                 "survey_optional_filled": count_filled_optional(survey_answers),
+                "locale": loc,
             }
         )
     except Exception:
@@ -777,7 +787,7 @@ def generate_report(
             conv.id,
             PROMPT_VERSION,
         )
-        payload = report_fallback()
+        payload = report_fallback(loc)
         rout = {
             "retrieval_query": {},
             "candidates": [],
@@ -797,7 +807,7 @@ def generate_report(
     try:
         payload = ReportPayload.model_validate(rout.get("report_payload_dict") or {})
     except Exception:
-        payload = report_fallback()
+        payload = report_fallback(loc)
 
     if not candidates:
         notice = payload.limited_data_notice + (
@@ -823,7 +833,7 @@ def generate_report(
     else:
         payload = payload.model_copy(update={"follow_up_questions": []})
 
-    disc = merge_report_disclaimer(payload.disclaimer)
+    disc = merge_report_disclaimer(payload.disclaimer, locale=loc)
     payload_dict = payload.model_dump()
     payload_dict["disclaimer"] = disc
 

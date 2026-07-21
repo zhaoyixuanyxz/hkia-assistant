@@ -71,6 +71,11 @@ class ConversationOut(BaseModel):
 
 class MessageCreate(BaseModel):
     content: str
+    locale: str | None = None
+
+
+class ReportGenerateBody(BaseModel):
+    locale: str | None = None
 
 
 class MessageOut(BaseModel):
