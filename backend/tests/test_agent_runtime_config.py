@@ -19,6 +19,10 @@ def test_compose_backend_uses_live_llm_by_default() -> None:
 
 
 def test_settings_accept_legacy_deepseek_env_names(monkeypatch) -> None:
+    # Prefer legacy names when primary aliases are absent (process may already
+    # have DEEPSEEK_* from load_dotenv of repo .env via app.main import).
+    monkeypatch.delenv("DEEPSEEK_API_BASE", raising=False)
+    monkeypatch.delenv("DEEPSEEK_CHAT_MODEL", raising=False)
     monkeypatch.setenv("DEEPSEEK_BASE_URL", "https://api.example.test")
     monkeypatch.setenv("DEEPSEEK_MODEL", "example-chat")
 
@@ -26,6 +30,20 @@ def test_settings_accept_legacy_deepseek_env_names(monkeypatch) -> None:
 
     assert settings.deepseek_api_base == "https://api.example.test"
     assert settings.deepseek_chat_model == "example-chat"
+
+
+def test_settings_default_model_is_deepseek_v4_pro() -> None:
+    settings = Settings(_env_file=None)
+    assert settings.deepseek_chat_model == "deepseek-v4-pro"
+    assert settings.deepseek_report_thinking is True
+    assert settings.deepseek_report_reasoning_effort == "high"
+
+
+def test_compose_backend_defaults_to_v4_pro() -> None:
+    compose_text = (REPO_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    assert "deepseek-v4-pro" in compose_text
+    assert "DEEPSEEK_REPORT_THINKING:" in compose_text
+    assert "DEEPSEEK_REPORT_REASONING_EFFORT:" in compose_text
 
 
 def test_settings_report_follow_up_defaults_to_empty_no_followup_list() -> None:

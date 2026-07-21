@@ -24,8 +24,18 @@ class Settings(BaseSettings):
     )
     deepseek_api_key: str = ""
     deepseek_chat_model: str = Field(
-        default="deepseek-chat",
+        default="deepseek-v4-pro",
         validation_alias=AliasChoices("DEEPSEEK_CHAT_MODEL", "DEEPSEEK_MODEL"),
+    )
+    #: Report-path JSON calls (dual-source fuse + report architect): enable DeepSeek thinking.
+    deepseek_report_thinking: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("DEEPSEEK_REPORT_THINKING"),
+    )
+    #: DeepSeek reasoning_effort when report thinking is on (`high` or `max`).
+    deepseek_report_reasoning_effort: str = Field(
+        default="high",
+        validation_alias=AliasChoices("DEEPSEEK_REPORT_REASONING_EFFORT"),
     )
 
     use_mock_llm: bool = False
