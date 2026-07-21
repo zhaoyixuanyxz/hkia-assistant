@@ -7,6 +7,7 @@ from app.survey_merge import survey_to_dimension_strings
 from app.survey_template import (
     compute_report_depth,
     count_filled_optional,
+    survey_answers_for_prompt,
     validate_survey_answers,
 )
 
@@ -62,6 +63,15 @@ def test_report_depth_tiers() -> None:
 
     deep_answers = validate_survey_answers(_full_answers(extra_opt=True))
     assert compute_report_depth(deep_answers) == "deep"
+
+
+def test_survey_answers_for_prompt_english_locale() -> None:
+    block = survey_answers_for_prompt(validate_survey_answers(_full_answers()), locale="en")
+    assert "Age band" in block
+    assert "Hong Kong" in block
+    assert "Hospital / medical" in block or "medical_hospital" not in block.split("Primary")[1][:80]
+    assert "常住/工作地" not in block
+    assert "香港" not in block
 
 
 def test_enforce_chart_depth_distinct_types() -> None:

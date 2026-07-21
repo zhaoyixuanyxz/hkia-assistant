@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { ApiError, apiFetch } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { localizedSessionTitle } from "@/lib/session-title";
 import { Link, useRouter } from "@/i18n/navigation";
 import type { ConversationSummary } from "@/lib/types";
 
@@ -122,7 +123,13 @@ export default function ConversationsPage() {
                       {t("pinned")}
                     </span>
                   ) : null}
-                  <span className="truncate">{c.title}</span>
+                  <span className="truncate">
+                    {localizedSessionTitle(
+                      c.title,
+                      tc("newSessionTitle"),
+                      t("title"),
+                    )}
+                  </span>
                 </CardTitle>
                 <CardDescription className="text-xs">
                   {t("updatedAt")} {new Date(c.updated_at).toLocaleString()}

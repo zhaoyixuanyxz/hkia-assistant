@@ -26,7 +26,17 @@ export default function KnowledgePage() {
   const [rows, setRows] = useState<ProductStub[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const categories = useMemo(() => ["", "医疗", "人寿", "储蓄", "重疾"], []);
+  const categories = useMemo(
+    () =>
+      [
+        { value: "", label: t("allCategories") },
+        { value: "医疗", label: t("categoryMedical") },
+        { value: "人寿", label: t("categoryLife") },
+        { value: "储蓄", label: t("categorySavings") },
+        { value: "重疾", label: t("categoryCI") },
+      ] as const,
+    [t]
+  );
 
   const load = useCallback(async () => {
     if (!getToken()) return;
@@ -67,13 +77,13 @@ export default function KnowledgePage() {
         <div className="flex flex-wrap gap-2">
           {categories.map((c) => (
             <Button
-              key={c || "all"}
+              key={c.value || "all"}
               type="button"
               size="sm"
-              variant={category === c ? "secondary" : "outline"}
-              onClick={() => setCategory(c)}
+              variant={category === c.value ? "secondary" : "outline"}
+              onClick={() => setCategory(c.value)}
             >
-              {!c ? t("allCategories") : c}
+              {c.label}
             </Button>
           ))}
         </div>

@@ -77,11 +77,18 @@ class BrokenFuseLLM(MockLLM):
     """LLM fuse returns invalid JSON → rule_fallback."""
 
     def complete_json_text(
-        self, user_prompt: str, system: str, *, max_tokens: int | None = None
+        self,
+        user_prompt: str,
+        system: str,
+        *,
+        max_tokens: int | None = None,
+        thinking: bool | None = None,
     ) -> str:
         if PROFILE_DUAL_SOURCE_FUSE_MARKER in system:
             return "{"
-        return super().complete_json_text(user_prompt, system, max_tokens=max_tokens)
+        return super().complete_json_text(
+            user_prompt, system, max_tokens=max_tokens, thinking=thinking
+        )
 
 
 def test_build_integrated_profile_rule_fallback_on_bad_json() -> None:

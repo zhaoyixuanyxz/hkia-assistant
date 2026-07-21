@@ -14,7 +14,10 @@ _OUTPUT_LANGUAGE: dict[str, str] = {
     ),
     "en": (
         "【Output language】All user-facing prose, follow-up questions, and string field values "
-        "in this turn MUST be written in professional, prudent **English**. "
+        "in this turn MUST be written in professional, prudent **English** "
+        "(including report title, background, insights, allocation direction, category suggestions, "
+        "risk notes, limited_data_notice, chart titles, and every charts[].data[].name label). "
+        "Do not switch to Chinese for any of those fields. "
         "Keep JSON keys in English. Keep official product/plan names and codes as in the knowledge "
         "base (add a short English gloss in parentheses only if helpful). "
         "Do not invent translated formal policy titles."

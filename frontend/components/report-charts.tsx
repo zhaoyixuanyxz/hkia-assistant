@@ -32,6 +32,7 @@ import {
 } from "recharts";
 
 import type { ChartSpec, ChartType } from "@/lib/types";
+import { useTranslations } from "next-intl";
 
 const PALETTE = [
   "#7dd3fc",
@@ -59,7 +60,17 @@ function isKnownType(t: string): t is ChartType {
   );
 }
 
-function ChartInner({ c, idx }: { c: ChartSpec; idx: number }) {
+function ChartInner({
+  c,
+  idx,
+  seriesValue,
+  seriesIndex,
+}: {
+  c: ChartSpec;
+  idx: number;
+  seriesValue: string;
+  seriesIndex: string;
+}) {
   const stroke = PALETTE[idx % PALETTE.length];
   const data = c.data;
 
@@ -73,7 +84,7 @@ function ChartInner({ c, idx }: { c: ChartSpec; idx: number }) {
             tick={{ fill: "var(--foreground)", fontSize: 11 }}
           />
           <Radar
-            name="值"
+            name={seriesValue}
             dataKey="value"
             stroke={stroke}
             fill={stroke}
@@ -201,13 +212,13 @@ function ChartInner({ c, idx }: { c: ChartSpec; idx: number }) {
           <XAxis
             type="number"
             dataKey="x"
-            name="序"
+            name={seriesIndex}
             tick={{ fill: "var(--foreground)", fontSize: 11 }}
           />
           <YAxis
             type="number"
             dataKey="y"
-            name="值"
+            name={seriesValue}
             tick={{ fill: "var(--foreground)", fontSize: 11 }}
           />
           <ZAxis range={[60, 60]} />
@@ -308,13 +319,16 @@ function ChartInner({ c, idx }: { c: ChartSpec; idx: number }) {
 const MAX_REPORT_CHARTS = 20;
 
 export function ReportCharts({ charts }: { charts: ChartSpec[] }) {
+  const t = useTranslations("report");
+  const seriesValue = t("chartSeriesValue");
+  const seriesIndex = t("chartSeriesIndex");
   const safe = charts.filter((c) => isKnownType(c.type));
   const list = (safe.length ? safe : charts).slice(0, MAX_REPORT_CHARTS);
 
   return (
     <div className="grid gap-6 print:grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
       {list.map((c, idx) => {
-        const t = isKnownType(c.type) ? c.type : "pie";
+        const tType = isKnownType(c.type) ? c.type : "pie";
         const spec = isKnownType(c.type) ? c : { ...c, type: "pie" as const };
         if (!isKnownType(c.type)) {
           console.warn("Unknown chart type, falling back to pie:", c.type);
@@ -327,7 +341,12 @@ export function ReportCharts({ charts }: { charts: ChartSpec[] }) {
             <div className="mb-2 text-sm font-medium">{c.title}</div>
             <div className="h-64 w-full print:h-56">
               <ResponsiveContainer width="100%" height="100%">
-                <ChartInner c={{ ...spec, type: t }} idx={idx} />
+                <ChartInner
+                  c={{ ...spec, type: tType }}
+                  idx={idx}
+                  seriesValue={seriesValue}
+                  seriesIndex={seriesIndex}
+                />
               </ResponsiveContainer>
             </div>
           </div>

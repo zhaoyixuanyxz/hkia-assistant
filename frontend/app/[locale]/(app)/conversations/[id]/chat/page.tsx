@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError, apiFetch } from "@/lib/api";
 import { splitAssistantMessage } from "@/lib/chat-disclaimer";
+import { localizedSessionTitle } from "@/lib/session-title";
 import { getToken } from "@/lib/auth";
 import type { ConversationDetail, Message } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -156,7 +157,11 @@ export default function ChatPage() {
                     "var(--font-chat-display), var(--font-serif), Georgia, serif",
                 }}
               >
-                {detail?.title ?? t("fallbackTitle")}
+                {localizedSessionTitle(
+                  detail?.title,
+                  t("newSessionTitle"),
+                  t("fallbackTitle"),
+                )}
               </h1>
               <p className="text-xs text-muted-foreground">
                 {t("userRounds", { count: roundCount })}

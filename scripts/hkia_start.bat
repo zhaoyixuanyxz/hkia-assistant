@@ -80,8 +80,18 @@ if errorlevel 1 (
   echo [warn] Pre-pull had issues; continuing with compose build anyway...
 )
 
+set "DOTENV=%ROOT%\.env"
+if not exist "%DOTENV%" (
+  echo [error] Missing secrets file: %DOTENV%
+  echo Copy .env.example to .env and set DEEPSEEK_API_KEY / JWT_SECRET first.
+  pause
+  exit /b 1
+)
+
+REM Region file first (image mirrors), then .env so DEEPSEEK_API_KEY and secrets win.
 echo [start] docker compose up -d --build ...
-docker compose -f "%COMPOSE_FILE%" --env-file "%COMPOSE_ENV%" --project-directory "%ROOT%." up -d --build
+echo [start] Env: %COMPOSE_ENV% + %DOTENV%
+docker compose -f "%COMPOSE_FILE%" --env-file "%COMPOSE_ENV%" --env-file "%DOTENV%" --project-directory "%ROOT%." up -d --build
 if errorlevel 1 (
   echo [error] docker compose failed.
   pause

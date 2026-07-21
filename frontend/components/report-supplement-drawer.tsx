@@ -136,6 +136,7 @@ export function ReportSupplementDrawer({
   onSurveyUpdated,
 }: Props) {
   const t = useTranslations("report");
+  const ot = useTranslations("report.survey.optionLabels");
   const [template, setTemplate] = useState<ReportSurveyTemplate | null>(null);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
   const [status, setStatus] = useState<string>("draft");
@@ -213,9 +214,19 @@ export function ReportSupplementDrawer({
   const depthKey = depthPreview(answers);
   const reqOk = requiredComplete(answers);
 
+  function localizeOption(raw: string): string {
+    if (!raw) return raw;
+    return ot.has(raw) ? ot(raw) : raw;
+  }
+
   const renderField = (f: SurveyTemplateField) => {
     const label = t(`survey.fieldLabels.${f.id}` as "survey.fieldLabels.age_band");
     const v = answers[f.id];
+    const placeholderKey =
+      `survey.fieldPlaceholders.${f.id}` as "survey.fieldPlaceholders.marital_dependents_summary";
+    const placeholder = t.has(placeholderKey)
+      ? t(placeholderKey)
+      : (f.placeholder ?? "");
 
     if (f.input === "multiselect" && f.id === "primary_goals") {
       return (
@@ -278,7 +289,10 @@ export function ReportSupplementDrawer({
             <option value="">—</option>
             {f.options.map((opt) => {
               const val = typeof opt === "string" ? opt : opt.value;
-              const dis = typeof opt === "string" ? opt : opt.label;
+              const dis =
+                typeof opt === "string"
+                  ? localizeOption(opt)
+                  : localizeOption(opt.label);
               return (
                 <option key={val} value={val}>
                   {dis}
@@ -313,7 +327,7 @@ export function ReportSupplementDrawer({
         <Input
           value={typeof v === "string" ? v : ""}
           maxLength={f.max_len ?? undefined}
-          placeholder={f.placeholder ?? ""}
+          placeholder={placeholder}
           className="text-sm"
           onChange={(e) =>
             setAnswers((prev) => ({ ...prev, [f.id]: e.target.value }))
@@ -414,6 +428,31 @@ export function ReportSupplementDrawer({
         </ScrollArea>
 
         <footer className="shrink-0 space-y-2 border-t border-border/60 bg-card/90 px-4 py-3 backdrop-blur-sm">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="w-full text-xs"
+            disabled={loading}
+            onClick={async () => {
+              setLoading(true);
+              setMsg(null);
+              try {
+                const sur = await apiFetch<ConversationSurveyResponse>(
+                  `/conversations/${conversationId}/survey/prefill-from-chat`,
+                  { method: "POST" }
+                );
+                applySurveyResponse(sur);
+                setMsg(t("survey.prefillDone"));
+              } catch {
+                setMsg(t("survey.prefillFailed"));
+              } finally {
+                setLoading(false);
+              }
+            }}
+          >
+            {t("survey.prefillFromChat")}
+          </Button>
           <div className="grid grid-cols-2 gap-2">
             <Button
               type="button"

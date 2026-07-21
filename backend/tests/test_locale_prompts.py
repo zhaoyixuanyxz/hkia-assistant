@@ -27,3 +27,4 @@ def test_report_json_system_en() -> None:
     s = report_json_system(locale="en")
     assert "English" in s or "Output language" in s
     assert "均为中文内容字符串" not in s
+    assert "report-writing assistant" in s or "You are the" in s

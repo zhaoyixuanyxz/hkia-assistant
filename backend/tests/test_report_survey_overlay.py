@@ -119,3 +119,26 @@ def test_overlay_replaces_boilerplate() -> None:
     assert "香港" in out.user_background
     assert "住院与医疗费用保障" in out.user_background
     assert "2万-5万" in out.insights
+
+
+def test_overlay_english_locale_uses_english_prose() -> None:
+    a = _sample_answers()
+    p = ReportPayload(
+        title="t",
+        user_background="The user has not yet provided detailed personal background.",
+        insights="Due to lack of user information, no personalized insights.",
+        allocation_direction="generic",
+        product_category_suggestions="medical",
+        risk_notes="x",
+        follow_up_questions=[],
+        charts=[],
+        concrete_product_picks=[],
+    )
+    out = overlay_report_when_model_ignores_survey(p, a, locale="en")
+    assert "25-34" in out.user_background
+    assert "Hong Kong" in out.user_background
+    assert "Hospital / medical" in out.user_background
+    assert "supplement form" in out.user_background.lower()
+    assert "根据用户" not in out.user_background
+    assert "disposable" in out.insights.lower() or "premium" in out.insights.lower()
+    assert "结合用户" not in out.insights

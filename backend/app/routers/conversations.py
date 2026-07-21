@@ -47,11 +47,13 @@ from app.report_products import (
     sanitize_concrete_product_picks,
 )
 from app.report_integrated_profile import build_integrated_profile_for_report
-from app.report_survey_overlay import (
-    overlay_report_when_model_ignores_survey,
-    prune_follow_up_questions_after_survey_merge,
-)
+from app.report_locale_enforce import enforce_report_output_locale
+from app.report_survey_overlay import prune_follow_up_questions_after_survey_merge
 from app.survey_merge import merge_survey_into_profile_snapshot
+from app.survey_prefill import (
+    infer_survey_draft_from_chat,
+    merge_survey_fill_blanks_only,
+)
 from app.survey_template import (
     SURVEY_TEMPLATE_VERSION,
     coerce_survey_answers,
@@ -656,6 +658,58 @@ def put_conversation_survey(
     return _survey_response(conv.id, row)
 
 
+@router.post(
+    "/{conversation_id}/survey/prefill-from-chat",
+    response_model=ConversationSurveyOut,
+)
+def prefill_conversation_survey_from_chat(
+    conversation_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ConversationSurveyOut:
+    """Fill blank survey fields from latest chat profile + recent user messages."""
+    conv = _get_conversation(db, conversation_id, user, active_only=True)
+    prof = _latest_profile_row(db, conv.id)
+    summary = (prof.summary_text if prof else "") or ""
+    structured = (
+        prof.structured_json if prof and isinstance(prof.structured_json, dict) else None
+    )
+    user_msgs = db.scalars(
+        select(Message)
+        .where(Message.conversation_id == conv.id, Message.role == "user")
+        .order_by(Message.id.asc())
+    ).all()
+    user_texts = [m.content for m in user_msgs if (m.content or "").strip()]
+    inferred = infer_survey_draft_from_chat(
+        summary_text=summary,
+        structured=structured,
+        user_messages=user_texts[-40:],
+    )
+    row = _get_conversation_survey_row(db, conv.id)
+    existing = (
+        row.answers_json if row and isinstance(row.answers_json, dict) else {}
+    )
+    merged = merge_survey_fill_blanks_only(existing, inferred)
+    if row is None:
+        row = ConversationSurvey(
+            conversation_id=conv.id,
+            user_id=user.id,
+            answers_json=merged,
+            template_version=SURVEY_TEMPLATE_VERSION,
+            status="draft",
+        )
+        db.add(row)
+    else:
+        row.answers_json = merged
+        row.template_version = SURVEY_TEMPLATE_VERSION
+        if not row.status:
+            row.status = "draft"
+    conv.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(row)
+    return _survey_response(conv.id, row)
+
+
 @router.delete(
     "/{conversation_id}/survey",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -748,7 +802,7 @@ def generate_report(
             detail=str(e),
         ) from e
     report_depth = compute_report_depth(survey_answers)
-    survey_block = survey_answers_for_prompt(survey_answers)
+    survey_block = survey_answers_for_prompt(survey_answers, locale=loc)
 
     prof = _latest_profile_row(db, conv.id)
     raw_summary = ((prof.summary_text if prof else "") or "").strip()
@@ -810,9 +864,15 @@ def generate_report(
         payload = report_fallback(loc)
 
     if not candidates:
-        notice = payload.limited_data_notice + (
-            "（检索候选不足，报告仅以类别与框架描述，不包含具体产品引用。）"
-        )
+        short_notice = {
+            "zh-CN": "（检索候选不足，报告仅以类别与框架描述，不包含具体产品引用。）",
+            "zh-TW": "（檢索候選不足，報告僅以類別與框架描述，不包含具體產品引用。）",
+            "en": (
+                " (Retrieval returned few candidates; this report stays at category/"
+                "framework level without named product citations.)"
+            ),
+        }[loc]
+        notice = payload.limited_data_notice + short_notice
         payload = payload.model_copy(
             update={"concrete_product_picks": [], "limited_data_notice": notice}
         )
@@ -824,7 +884,9 @@ def generate_report(
         )
         payload = hydrate_concrete_picks_from_candidates(payload, candidates)
 
-    payload = overlay_report_when_model_ignores_survey(payload, survey_answers)
+    payload = enforce_report_output_locale(
+        payload, survey_answers, locale=loc, llm=llm
+    )
     settings_rf = get_settings()
     if settings_rf.report_follow_up_mode == "prune":
         payload = prune_follow_up_questions_after_survey_merge(
@@ -837,9 +899,14 @@ def generate_report(
     payload_dict = payload.model_dump()
     payload_dict["disclaimer"] = disc
 
+    default_title = {
+        "zh-CN": "配置说明",
+        "zh-TW": "配置說明",
+        "en": "Planning summary",
+    }[loc]
     rep = Report(
         conversation_id=conv.id,
-        title=payload.title or "配置说明",
+        title=payload.title or default_title,
         body_json=json.dumps(payload_dict, ensure_ascii=False),
         charts_json=json.dumps([c for c in payload_dict.get("charts") or []], ensure_ascii=False),
         disclaimer_text=disc,
