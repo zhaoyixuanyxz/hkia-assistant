@@ -3,6 +3,7 @@ from __future__ import annotations
 from app.compliance import (
     STANDARD_DISCLAIMER,
     assistant_content_for_llm,
+    disclaimer_for,
     finalize_chat_assistant_text,
 )
 from app.config import get_settings
@@ -70,3 +71,10 @@ def test_finalize_leading_whitespace_then_only_standard_disclaimer_gets_fallback
     assert lo <= len(body) <= hi
     assert "收到" in body
     assert STANDARD_DISCLAIMER in out
+
+
+def test_assistant_content_for_llm_strips_english_footer() -> None:
+    en = disclaimer_for("en")
+    body = "Hospital cover first."
+    stored = f"{body}\n\n{en}"
+    assert assistant_content_for_llm(stored) == body
