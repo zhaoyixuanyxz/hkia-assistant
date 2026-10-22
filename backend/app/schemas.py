@@ -190,6 +190,9 @@ class ProductDetailOut(BaseModel):
     source_note: str = ""
     official_url: str = ""
     is_sample: bool = True
+    sum_assured: str | None = None
+    premium: str | None = None
+    excerpt_date: str | None = None  # ISO date YYYY-MM-DD when present
     updated_at: str
     review_status: str = "active"
 

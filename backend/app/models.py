@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import JSON, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -159,6 +159,9 @@ class Product(Base):
     source_note: Mapped[str] = mapped_column(Text, default="")
     review_status: Mapped[str] = mapped_column(String(32), default="pending_review", index=True)
     is_sample: Mapped[bool] = mapped_column(default=False)
+    sum_assured: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    premium: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    excerpt_date: Mapped[date | None] = mapped_column(nullable=True, default=None)
     updated_at: Mapped[datetime] = mapped_column(
         server_default=func.now(), onupdate=func.now()
     )
