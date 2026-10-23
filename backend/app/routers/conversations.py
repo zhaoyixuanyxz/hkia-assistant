@@ -43,6 +43,7 @@ from app.qdrant_store import search_top_memories, upsert_memory_points
 from app.rag.retriever import HybridProductRetriever, retrieval_request_from_profile
 from app.report_products import (
     enrich_product_picks_with_sources,
+    filter_picks_current_excerpt_month,
     filter_picks_requiring_three_fields,
     hydrate_concrete_picks_from_candidates,
     sanitize_concrete_product_picks,
@@ -886,11 +887,13 @@ def generate_report(
         payload = hydrate_concrete_picks_from_candidates(payload, candidates)
 
     payload = filter_picks_requiring_three_fields(payload)
+    payload = filter_picks_current_excerpt_month(payload)
     payload = enforce_report_output_locale(
         payload, survey_answers, locale=loc, llm=llm
     )
     # EN locale rewrite may strip sum_assured/premium/excerpt_date from model JSON.
     payload = filter_picks_requiring_three_fields(payload)
+    payload = filter_picks_current_excerpt_month(payload)
     settings_rf = get_settings()
     if settings_rf.report_follow_up_mode == "prune":
         payload = prune_follow_up_questions_after_survey_merge(

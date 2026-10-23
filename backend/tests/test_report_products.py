@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from app.report_products import (
     enrich_product_picks_with_sources,
+    filter_picks_current_excerpt_month,
     filter_picks_requiring_three_fields,
     hydrate_concrete_picks_from_candidates,
 )
 from app.schemas import ReportPayload, ReportProductPick
+
+HK = ZoneInfo("Asia/Hong_Kong")
 
 
 def test_hydrate_fills_when_model_left_picks_empty() -> None:
@@ -149,3 +155,49 @@ def test_filter_after_hydrate_drops_incomplete_candidate() -> None:
     out = filter_picks_requiring_three_fields(mid)
     ids = [p.product_id for p in out.concrete_product_picks]
     assert ids == ["good"]
+
+
+def test_month_filter_drops_earlier_month() -> None:
+    now = datetime(2026, 10, 15, 12, 0, tzinfo=HK)
+    payload = ReportPayload(
+        concrete_product_picks=[_pick(excerpt_date="2026-09-30")]
+    )
+    out = filter_picks_current_excerpt_month(payload, now=now)
+    assert out.concrete_product_picks == []
+
+
+def test_month_filter_keeps_same_month() -> None:
+    now = datetime(2026, 10, 15, 12, 0, tzinfo=HK)
+    payload = ReportPayload(
+        concrete_product_picks=[_pick(excerpt_date="2026-10-01")]
+    )
+    out = filter_picks_current_excerpt_month(payload, now=now)
+    assert len(out.concrete_product_picks) == 1
+
+
+def test_month_filter_keeps_yyyy_mm() -> None:
+    now = datetime(2026, 10, 15, 12, 0, tzinfo=HK)
+    payload = ReportPayload(
+        concrete_product_picks=[_pick(excerpt_date="2026-10")]
+    )
+    out = filter_picks_current_excerpt_month(payload, now=now)
+    assert len(out.concrete_product_picks) == 1
+
+
+def test_month_filter_drops_unparseable() -> None:
+    now = datetime(2026, 10, 15, 12, 0, tzinfo=HK)
+    payload = ReportPayload(
+        concrete_product_picks=[_pick(excerpt_date="not-a-month")]
+    )
+    out = filter_picks_current_excerpt_month(payload, now=now)
+    assert out.concrete_product_picks == []
+
+
+def test_month_filter_uses_hk_boundary_now() -> None:
+    # Just into October HK; September excerpt must drop.
+    now = datetime(2026, 10, 1, 0, 5, tzinfo=HK)
+    payload = ReportPayload(
+        concrete_product_picks=[_pick(excerpt_date="2026-09-30")]
+    )
+    out = filter_picks_current_excerpt_month(payload, now=now)
+    assert out.concrete_product_picks == []

@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from app.schemas import ReportPayload, ReportProductPick
+
+_HK = ZoneInfo("Asia/Hong_Kong")
 
 _DEFAULT_HYDRATED_RATIONALE = (
     "本条为系统在可检索产品候选中择取，便于与您在持牌顾问处核对；"
@@ -78,6 +82,51 @@ def filter_picks_requiring_three_fields(payload: ReportPayload) -> ReportPayload
         p
         for p in payload.concrete_product_picks
         if _present(p.sum_assured) and _present(p.premium) and _present(p.excerpt_date)
+    ]
+    return payload.model_copy(update={"concrete_product_picks": kept})
+
+
+def _excerpt_year_month(value: str | None) -> tuple[int, int] | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if len(text) >= 7 and text[4] == "-":
+        # YYYY-MM or YYYY-MM-DD
+        try:
+            year = int(text[0:4])
+            month = int(text[5:7])
+        except ValueError:
+            return None
+        if month < 1 or month > 12:
+            return None
+        if len(text) == 7:
+            return year, month
+        if len(text) >= 10 and text[7] == "-":
+            try:
+                day = int(text[8:10])
+            except ValueError:
+                return None
+            if day < 1 or day > 31:
+                return None
+            return year, month
+    return None
+
+
+def filter_picks_current_excerpt_month(
+    payload: ReportPayload,
+    *,
+    now: datetime | None = None,
+) -> ReportPayload:
+    clock = now if now is not None else datetime.now(_HK)
+    if clock.tzinfo is None:
+        clock = clock.replace(tzinfo=_HK)
+    else:
+        clock = clock.astimezone(_HK)
+    report_ym = (clock.year, clock.month)
+    kept = [
+        p
+        for p in payload.concrete_product_picks
+        if _excerpt_year_month(p.excerpt_date) == report_ym
     ]
     return payload.model_copy(update={"concrete_product_picks": kept})
 
