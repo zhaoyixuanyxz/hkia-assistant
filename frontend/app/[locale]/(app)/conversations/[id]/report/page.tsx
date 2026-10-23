@@ -202,44 +202,30 @@ export default function ReportPage() {
               <h3 className="text-sm font-medium text-muted-foreground print:text-stone-800">
                 {tr("picksTitle")}
               </h3>
-              <ul className="space-y-3 text-sm">
-                {body.concrete_product_picks.map((p) => (
-                  <li
-                    key={p.product_id}
-                    className="rounded-md border border-border/70 bg-muted/20 p-3"
-                  >
-                    <div className="font-medium text-foreground">
-                      {p.name || tr("refLabel")}
-                    </div>
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      {tr("refLabel")}: {p.product_id}
-                    </p>
-                    {p.rationale ? (
-                      <p className="mt-2 text-xs leading-relaxed">{p.rationale}</p>
-                    ) : null}
-                    {p.source_url ? (
-                      <a
-                        href={p.source_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-2 inline-block text-xs text-primary underline"
-                      >
-                        {tr("dataSource")}
-                      </a>
-                    ) : null}
-                    {p.product_id ? (
-                      <div className="mt-2">
-                        <Link
-                          href={`/knowledge/${encodeURIComponent(p.product_id)}`}
-                          className="text-xs text-primary underline"
-                        >
-                          {tr("viewInLibrary")}
-                        </Link>
-                      </div>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr>
+                    <th className="border-b py-2 text-left font-medium">
+                      {tr("compareColSum")}
+                    </th>
+                    <th className="border-b py-2 text-left font-medium">
+                      {tr("compareColPremium")}
+                    </th>
+                    <th className="border-b py-2 text-left font-medium">
+                      {tr("compareColDate")}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {body.concrete_product_picks.map((p) => (
+                    <tr key={p.product_id}>
+                      <td className="border-b py-2">{p.sum_assured ?? ""}</td>
+                      <td className="border-b py-2">{p.premium ?? ""}</td>
+                      <td className="border-b py-2">{p.excerpt_date ?? ""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </section>
           ) : null}
           <section className="space-y-2">

@@ -48,6 +48,9 @@ def _product_to_detail(row: Product) -> ProductDetailOut:
         source_note=row.source_note or "",
         official_url=row.official_url or "",
         is_sample=bool(row.is_sample),
+        sum_assured=row.sum_assured,
+        premium=row.premium,
+        excerpt_date=row.excerpt_date.isoformat() if row.excerpt_date else None,
         updated_at=row.updated_at.isoformat() + "Z",
         review_status=row.review_status,
     )
