@@ -69,6 +69,19 @@ def hydrate_concrete_picks_from_candidates(
     return enrich_product_picks_with_sources(out, candidate_map)
 
 
+def _present(value: str | None) -> bool:
+    return value is not None and str(value).strip() != ""
+
+
+def filter_picks_requiring_three_fields(payload: ReportPayload) -> ReportPayload:
+    kept = [
+        p
+        for p in payload.concrete_product_picks
+        if _present(p.sum_assured) and _present(p.premium) and _present(p.excerpt_date)
+    ]
+    return payload.model_copy(update={"concrete_product_picks": kept})
+
+
 def sanitize_concrete_product_picks(
     payload: ReportPayload, allowed_ids: set[str]
 ) -> ReportPayload:

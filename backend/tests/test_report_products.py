@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.report_products import (
     enrich_product_picks_with_sources,
+    filter_picks_requiring_three_fields,
     hydrate_concrete_picks_from_candidates,
 )
 from app.schemas import ReportPayload, ReportProductPick
@@ -68,3 +69,83 @@ def test_enrich_copies_sum_premium_excerpt_from_candidate() -> None:
     assert pick.sum_assured == "HKD 1,000,000"
     assert pick.premium == "HKD 500"
     assert pick.excerpt_date == "2026-10-01"
+
+
+def _pick(**kwargs) -> ReportProductPick:
+    base = dict(
+        product_id="p1",
+        name="n",
+        rationale="r",
+        sum_assured="HKD 1",
+        premium="HKD 2",
+        excerpt_date="2026-10-01",
+    )
+    base.update(kwargs)
+    return ReportProductPick(**base)
+
+
+def test_filter_drops_missing_sum_assured() -> None:
+    payload = ReportPayload(concrete_product_picks=[_pick(sum_assured=None)])
+    out = filter_picks_requiring_three_fields(payload)
+    assert out.concrete_product_picks == []
+
+
+def test_filter_drops_missing_premium() -> None:
+    payload = ReportPayload(concrete_product_picks=[_pick(premium="  ")])
+    out = filter_picks_requiring_three_fields(payload)
+    assert out.concrete_product_picks == []
+
+
+def test_filter_drops_missing_excerpt_date() -> None:
+    payload = ReportPayload(concrete_product_picks=[_pick(excerpt_date=None)])
+    out = filter_picks_requiring_three_fields(payload)
+    assert out.concrete_product_picks == []
+
+
+def test_filter_keeps_complete_pick() -> None:
+    payload = ReportPayload(concrete_product_picks=[_pick()])
+    out = filter_picks_requiring_three_fields(payload)
+    assert len(out.concrete_product_picks) == 1
+    assert out.concrete_product_picks[0].product_id == "p1"
+
+
+def test_filter_drops_pick_after_locale_rewrite_strips_three_fields() -> None:
+    """Simulates post-llm_rewrite_report_locale picks missing numeric/date fields."""
+    payload = ReportPayload(concrete_product_picks=[_pick()])
+    rewritten = payload.model_copy(
+        update={
+            "concrete_product_picks": [
+                _pick(sum_assured=None, premium=None, excerpt_date=None)
+            ]
+        }
+    )
+    out = filter_picks_requiring_three_fields(rewritten)
+    assert out.concrete_product_picks == []
+
+
+def test_filter_after_hydrate_drops_incomplete_candidate() -> None:
+    payload = ReportPayload(concrete_product_picks=[])
+    cands = [
+        {
+            "product_id": "bad",
+            "name": "ç¼ºä¿é¢",
+            "match_reason": "x",
+            "source_url": "https://www.chinalife.com.hk/zh-hk/products/insurance/medical/x",
+            "sum_assured": None,
+            "premium": "HKD 1",
+            "excerpt_date": "2026-10-01",
+        },
+        {
+            "product_id": "good",
+            "name": "é½å…¨",
+            "match_reason": "y",
+            "source_url": "https://www.chinalife.com.hk/zh-hk/products/insurance/medical/y",
+            "sum_assured": "HKD 9",
+            "premium": "HKD 1",
+            "excerpt_date": "2026-10-01",
+        },
+    ]
+    mid = hydrate_concrete_picks_from_candidates(payload, cands, max_picks=3)
+    out = filter_picks_requiring_three_fields(mid)
+    ids = [p.product_id for p in out.concrete_product_picks]
+    assert ids == ["good"]
