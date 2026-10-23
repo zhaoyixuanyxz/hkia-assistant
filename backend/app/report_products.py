@@ -23,6 +23,16 @@ def _opt_str(cand: dict, key: str, fallback: str | None) -> str | None:
     return str(v)
 
 
+def _cand_field(cand: dict, key: str) -> str | None:
+    if key not in cand:
+        return None
+    v = cand.get(key)
+    if v is None:
+        return None
+    text = str(v).strip()
+    return text or None
+
+
 def hydrate_concrete_picks_from_candidates(
     payload: ReportPayload,
     candidates: list[dict[str, Any]],
@@ -156,9 +166,9 @@ def enrich_product_picks_with_sources(
                 name=p.name or str(cand.get("name", "")),
                 rationale=rationale,
                 source_url=source_url,
-                sum_assured=_opt_str(cand, "sum_assured", p.sum_assured),
-                premium=_opt_str(cand, "premium", p.premium),
-                excerpt_date=_opt_str(cand, "excerpt_date", p.excerpt_date),
+                sum_assured=_cand_field(cand, "sum_assured"),
+                premium=_cand_field(cand, "premium"),
+                excerpt_date=_cand_field(cand, "excerpt_date"),
             )
         )
     return payload.model_copy(update={"concrete_product_picks": picks})

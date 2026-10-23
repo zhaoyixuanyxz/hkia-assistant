@@ -77,6 +77,94 @@ def test_enrich_copies_sum_premium_excerpt_from_candidate() -> None:
     assert pick.excerpt_date == "2026-10-01"
 
 
+def test_enrich_overwrites_model_three_fields_from_candidate() -> None:
+    payload = ReportPayload(
+        concrete_product_picks=[
+            ReportProductPick(
+                product_id="p1",
+                name="n",
+                rationale="r",
+                sum_assured="MODEL_SUM",
+                premium="MODEL_PREM",
+                excerpt_date="2099-01-01",
+            )
+        ]
+    )
+    cmap = {
+        "p1": {
+            "name": "库名",
+            "match_reason": "m",
+            "source_url": "https://www.chinalife.com.hk/zh-hk/products/insurance/medical/x",
+            "sum_assured": "HKD 1,000,000",
+            "premium": "HKD 500",
+            "excerpt_date": "2026-10-01",
+        }
+    }
+    out = enrich_product_picks_with_sources(payload, cmap)
+    pick = out.concrete_product_picks[0]
+    assert pick.sum_assured == "HKD 1,000,000"
+    assert pick.premium == "HKD 500"
+    assert pick.excerpt_date == "2026-10-01"
+
+
+def test_enrich_does_not_keep_model_fill_when_candidate_missing_fields() -> None:
+    payload = ReportPayload(
+        concrete_product_picks=[
+            ReportProductPick(
+                product_id="p1",
+                name="n",
+                rationale="r",
+                sum_assured="MODEL_SUM",
+                premium="MODEL_PREM",
+                excerpt_date="2026-10-01",
+            )
+        ]
+    )
+    cmap = {
+        "p1": {
+            "name": "库名",
+            "match_reason": "m",
+            "source_url": "https://www.chinalife.com.hk/zh-hk/products/insurance/medical/x",
+            "sum_assured": None,
+            "premium": None,
+            "excerpt_date": "2026-10-01",
+        }
+    }
+    out = enrich_product_picks_with_sources(payload, cmap)
+    pick = out.concrete_product_picks[0]
+    assert pick.sum_assured is None
+    assert pick.premium is None
+    assert pick.excerpt_date == "2026-10-01"
+
+
+def test_enrich_ignores_model_when_candidate_omits_three_field_keys() -> None:
+    payload = ReportPayload(
+        concrete_product_picks=[
+            ReportProductPick(
+                product_id="p1",
+                name="n",
+                rationale="r",
+                sum_assured="MODEL_SUM",
+                premium="MODEL_PREM",
+                excerpt_date="2099-01-01",
+            )
+        ]
+    )
+    cmap = {
+        "p1": {
+            "name": "库名",
+            "match_reason": "m",
+            "source_url": "https://www.chinalife.com.hk/zh-hk/products/insurance/medical/x",
+            # no sum_assured / premium / excerpt_date keys
+        }
+    }
+    out = enrich_product_picks_with_sources(payload, cmap)
+    pick = out.concrete_product_picks[0]
+    assert pick.sum_assured is None
+    assert pick.premium is None
+    assert pick.excerpt_date is None
+
+
 def _pick(**kwargs) -> ReportProductPick:
     base = dict(
         product_id="p1",

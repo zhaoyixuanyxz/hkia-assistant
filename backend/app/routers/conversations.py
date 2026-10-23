@@ -860,6 +860,9 @@ def generate_report(
 
     candidates = rout.get("candidates") or []
     allowed_ids = {str(c.get("product_id")) for c in candidates if c.get("product_id")}
+    candidate_map = {
+        str(c.get("product_id")): c for c in candidates if c.get("product_id")
+    }
     try:
         payload = ReportPayload.model_validate(rout.get("report_payload_dict") or {})
     except Exception:
@@ -880,10 +883,7 @@ def generate_report(
         )
     else:
         payload = sanitize_concrete_product_picks(payload, allowed_ids)
-        payload = enrich_product_picks_with_sources(
-            payload,
-            {str(c.get("product_id")): c for c in candidates if c.get("product_id")},
-        )
+        payload = enrich_product_picks_with_sources(payload, candidate_map)
         payload = hydrate_concrete_picks_from_candidates(payload, candidates)
 
     payload = filter_picks_requiring_three_fields(payload)
@@ -891,7 +891,8 @@ def generate_report(
     payload = enforce_report_output_locale(
         payload, survey_answers, locale=loc, llm=llm
     )
-    # EN locale rewrite may strip sum_assured/premium/excerpt_date from model JSON.
+    # Restore three fields from candidates after EN rewrite may strip them.
+    payload = enrich_product_picks_with_sources(payload, candidate_map)
     payload = filter_picks_requiring_three_fields(payload)
     payload = filter_picks_current_excerpt_month(payload)
     settings_rf = get_settings()
