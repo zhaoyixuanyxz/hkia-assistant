@@ -132,6 +132,9 @@ class ReportProductPick(BaseModel):
     name: str = ""
     rationale: str = ""
     source_url: str = ""
+    sum_assured: str | None = None
+    premium: str | None = None
+    excerpt_date: str | None = None
 
 
 class ReportPayload(BaseModel):
@@ -238,3 +241,6 @@ class ProductCandidate(BaseModel):
     match_reason: str = ""
     source_url: str = ""
     updated_at: str = ""
+    sum_assured: str | None = None
+    premium: str | None = None
+    excerpt_date: str | None = None

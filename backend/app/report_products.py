@@ -10,6 +10,15 @@ _DEFAULT_HYDRATED_RATIONALE = (
 )
 
 
+def _opt_str(cand: dict, key: str, fallback: str | None) -> str | None:
+    if key not in cand:
+        return fallback
+    v = cand.get(key)
+    if v is None:
+        return None
+    return str(v)
+
+
 def hydrate_concrete_picks_from_candidates(
     payload: ReportPayload,
     candidates: list[dict[str, Any]],
@@ -45,6 +54,9 @@ def hydrate_concrete_picks_from_candidates(
                 name=str(c.get("name") or ""),
                 rationale=reason,
                 source_url=str(c.get("source_url") or ""),
+                sum_assured=_opt_str(c, "sum_assured", None),
+                premium=_opt_str(c, "premium", None),
+                excerpt_date=_opt_str(c, "excerpt_date", None),
             )
         )
         if len(picks) >= max_picks:
@@ -82,6 +94,9 @@ def enrich_product_picks_with_sources(
                 name=p.name or str(cand.get("name", "")),
                 rationale=rationale,
                 source_url=source_url,
+                sum_assured=_opt_str(cand, "sum_assured", p.sum_assured),
+                premium=_opt_str(cand, "premium", p.premium),
+                excerpt_date=_opt_str(cand, "excerpt_date", p.excerpt_date),
             )
         )
     return payload.model_copy(update={"concrete_product_picks": picks})

@@ -31,6 +31,9 @@ def product_to_row(product: Product) -> dict:
         "is_sample": bool(product.is_sample),
         "updated_at": product.updated_at.isoformat() + "Z",
         "review_status": product.review_status,
+        "sum_assured": product.sum_assured,
+        "premium": product.premium,
+        "excerpt_date": product.excerpt_date.isoformat() if product.excerpt_date else None,
     }
 
 

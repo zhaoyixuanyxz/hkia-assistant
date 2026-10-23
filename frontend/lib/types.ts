@@ -65,6 +65,9 @@ export type ReportBody = {
     name: string;
     rationale: string;
     source_url?: string;
+    sum_assured?: string | null;
+    premium?: string | null;
+    excerpt_date?: string | null;
   }[];
 };
 

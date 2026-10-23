@@ -13,6 +13,15 @@ from app.schemas import ProductCandidate, ProductRetrievalRequest
 logger = logging.getLogger(__name__)
 
 
+def _excerpt_date_iso(raw: object) -> str | None:
+    if raw is None:
+        return None
+    if hasattr(raw, "isoformat"):
+        return str(raw.isoformat())  # type: ignore[union-attr]
+    text = str(raw).strip()
+    return text or None
+
+
 def _keyword_slice(stubs: list[dict], req: ProductRetrievalRequest) -> list[dict]:
     needles: list[str] = []
     if req.goals:
@@ -112,6 +121,9 @@ class HybridProductRetriever:
                         match_reason="向量检索命中（关键词过滤在与请求匹配的集合内）。",
                         source_url=str(pl.get("source_url", "")),
                         updated_at=str(pl.get("updated_at", "")),
+                        sum_assured=pl.get("sum_assured"),
+                        premium=pl.get("premium"),
+                        excerpt_date=_excerpt_date_iso(pl.get("excerpt_date")),
                     )
                 )
             if len(candidates) < limit:
@@ -153,6 +165,9 @@ class HybridProductRetriever:
                         match_reason="关键词裁剪 + 本地向量相似度（Mock 或离线嵌入）。",
                         source_url=str(row.get("source_url", "")),
                         updated_at=str(row.get("updated_at", "")),
+                        sum_assured=row.get("sum_assured"),
+                        premium=row.get("premium"),
+                        excerpt_date=_excerpt_date_iso(row.get("excerpt_date")),
                     )
                 )
 
